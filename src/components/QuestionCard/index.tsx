@@ -7,6 +7,7 @@ interface QuestionCardProps {
   setUserAnswers: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   onCheck: () => void;
   onNext: () => void;
+  onDelete?: () => void;
   isCorrect: boolean | null;
   showResult: boolean;
 }
@@ -33,6 +34,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   setUserAnswers,
   onCheck,
   onNext,
+  onDelete,
   isCorrect,
   showResult,
 }) => {
@@ -84,7 +86,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               onKeyDown={handleKeyDown}
               autoComplete="off"
             />
-            {showAnswer && (
+            {showAnswer && !isPersonCorrect && (
               <p className="mt-1 text-green-400 text-sm">
                 Réponse correcte:{" "}
                 <span className="font-semibold">{answer}</span>
@@ -112,12 +114,22 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           >
             {isCorrect ? "Correct!" : "Incorrect, essayez encore."}
           </p>
-          <button
-            onClick={onNext}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded"
-          >
-            Question Suivante
-          </button>
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <button
+              onClick={onNext}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded"
+            >
+              Question Suivante
+            </button>
+            {onDelete && (
+              <button
+                onClick={onDelete}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-6 rounded"
+              >
+                Supprimer la Question
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

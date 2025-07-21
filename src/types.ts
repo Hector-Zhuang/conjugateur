@@ -2,9 +2,8 @@ export interface Question {
   id: number;
   verb: string;
   tense: string;
-  person: string; // "je", "nous", or "ils"
+  person: "je" | "nous" | "ils";
   englishMeaning: string;
-  example: string;
   answer: string;
 }
 

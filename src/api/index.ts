@@ -22,36 +22,33 @@ export const generateQuestionsWithAIAndMixWrong = async (
   const prompt = `
     Generate EXACTLY ${count * 3} French verb conjugation questions as a flat JSON array.
     Group every 3 questions by the same verb and tense, with persons "je", "nous", and "ils" respectively.
-    
+  
     Use this schema:
-    
+  
     interface Question {
       id: number;
       verb: string;
       tense: string;
-      person: string;
+      person: string; // "je", "nous", or "ils"
       englishMeaning: string;
-      example: string;
       answer: string;
     }
-    
+  
     Rules:
-    - Each 3-question group must use the same verb and tense
+    - Each group of 3 questions must use the same verb and tense
     - Each group contains "je", "nous", and "ils"
-    - First verb MUST NOT be "choisir"
     - No repeated verbs across groups
     - 15-20% basic verbs (être, avoir, aller, faire)
     - At least 5 unique verbs total in ${count} groups
     ${excludedList}
-    - Natural French example sentences with blanks
-    - All fields required, answers accurate
-    - The 'answer' must include both the correct conjugation AND the subject pronoun (e.g. "je mange", not just "mange")
+    - Provide accurate answers INCLUDING the subject pronoun, e.g. "je mange", "nous mangeons"
+    - NO example sentences required
     - NO markdown, explanations, or extra text
-    
-    OUTPUT ONLY the RAW JSON ARRAY WITHOUT markdown or code block.
+  
+    OUTPUT ONLY the RAW JSON ARRAY WITHOUT markdown or code blocks.
     Do NOT wrap output in quotes or escape characters.
     Only output valid JSON.
-    `;
+  `;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-2024-08-06",

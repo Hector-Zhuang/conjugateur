@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import type { Question, QuestionGroup } from "./types";
 import Header from "./components/Header";
 import Controls from "./components/Controls";
@@ -15,6 +15,12 @@ export default function App() {
   const [questionCount, setQuestionCount] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [wrongQuestions, setWrongQuestions] = useState<Question[]>([]);
+  const [isReviewMode, setIsReviewMode] = useState(false);
+
+  const isReviewModeRef = useRef(isReviewMode);
+  useEffect(() => {
+    isReviewModeRef.current = isReviewMode;
+  }, [isReviewMode]);
 
   const groupQuestions = (qs: Question[]): QuestionGroup[] => {
     const groups: QuestionGroup[] = [];
@@ -50,17 +56,22 @@ export default function App() {
         questionCount,
         wrongQuestions,
       );
+      if (isReviewModeRef.current) return;
+
       setQuestionGroups(groupQuestions(newQuestions));
       setCurrentIndex(0);
       setScore(0);
       setShowResult(false);
       setUserAnswers({});
+      setIsReviewMode(false);
     } finally {
       setIsLoading(false);
     }
   };
 
   const startReview = () => {
+    setIsReviewMode(true);
+    setIsLoading(false);
     setQuestionGroups(groupQuestions(wrongQuestions));
     setCurrentIndex(0);
     setScore(0);
@@ -85,8 +96,17 @@ export default function App() {
     setIsCorrect(allCorrect);
     setShowResult(true);
 
-    if (allCorrect) setScore(score + 1);
-    else {
+    if (allCorrect) {
+      setScore((s) => s + 1);
+      const updatedWrong = wrongQuestions.filter(
+        (wq) => !group.questions.find((q) => q.id === wq.id),
+      );
+      setWrongQuestions(updatedWrong);
+      localStorage.setItem(
+        "frenchWrongQuestions",
+        JSON.stringify(updatedWrong),
+      );
+    } else {
       const updatedWrong = [...wrongQuestions];
       group.questions.forEach((q) => {
         if (!updatedWrong.find((wq) => wq.id === q.id)) updatedWrong.push(q);
@@ -103,7 +123,30 @@ export default function App() {
     setUserAnswers({});
     setShowResult(false);
     setIsCorrect(null);
-    setCurrentIndex(currentIndex + 1);
+    setCurrentIndex((idx) => idx + 1);
+  };
+
+  const deleteCurrentGroup = () => {
+    if (questionGroups.length === 0) return;
+    const groupToDelete = questionGroups[currentIndex];
+    if (!groupToDelete) return;
+
+    const newGroups = questionGroups.filter((_, idx) => idx !== currentIndex);
+    setQuestionGroups(newGroups);
+
+    const updatedWrong = wrongQuestions.filter(
+      (q) => !groupToDelete.questions.find((delQ) => delQ.id === q.id),
+    );
+    setWrongQuestions(updatedWrong);
+    localStorage.setItem("frenchWrongQuestions", JSON.stringify(updatedWrong));
+
+    setUserAnswers({});
+    setShowResult(false);
+    setIsCorrect(null);
+
+    if (currentIndex >= newGroups.length) {
+      setCurrentIndex(newGroups.length - 1);
+    }
   };
 
   const wrongVerbCount = useMemo(() => {
@@ -121,7 +164,10 @@ export default function App() {
           questionCount={questionCount}
           wrongCount={wrongVerbCount}
           setQuestionCount={setQuestionCount}
-          onStart={startNew}
+          onStart={() => {
+            setIsReviewMode(false);
+            startNew();
+          }}
           onReview={startReview}
           onClear={clearWrong}
           isLoading={isLoading}
@@ -135,11 +181,14 @@ export default function App() {
             isCorrect={isCorrect ?? null}
             showResult={showResult}
             onNext={nextQuestion}
+            onDelete={isReviewMode ? deleteCurrentGroup : undefined}
           />
         )}
         {currentIndex === questionGroups.length - 1 && showResult && (
           <div className="bg-gray-800 p-4 rounded text-center">
-            <h3 className="text-lg font-semibold">Session Complete</h3>
+            <h3 className="text-lg font-semibold">
+              {isReviewMode ? "Revue terminée" : "Session Complete"}
+            </h3>
             <p>
               Score: {score} / {questionGroups.length}
             </p>
