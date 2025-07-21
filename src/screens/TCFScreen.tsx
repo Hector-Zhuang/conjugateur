@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { SpeakingQuestion } from "../api";
 import { generateSpeakingQuestionsFromIntro } from "../api";
+import QuestionManager from "../components/QuestionManager";
 
 const STORAGE_KEY = "tcf_speaking_questions";
 const INTRO_STORAGE_KEY = "tcf_intro";
@@ -22,15 +23,11 @@ export default function TCFScreen() {
   const [intro, setIntro] = useState(
     () => localStorage.getItem(INTRO_STORAGE_KEY) || "",
   );
-  const [questions, setQuestions] = useState<SpeakingQuestion[]>([]);
   const [storedQuestions, setStoredQuestions] = useState<SpeakingQuestion[]>(
     [],
   );
   const [loading, setLoading] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
-
-  // Track which question ids have their answers visible
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setStoredQuestions(loadStoredQuestions());
@@ -39,18 +36,6 @@ export default function TCFScreen() {
   useEffect(() => {
     localStorage.setItem(INTRO_STORAGE_KEY, intro);
   }, [intro]);
-
-  const toggleAnswer = (id: string) => {
-    setExpandedIds((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
-      } else {
-        newSet.add(id);
-      }
-      return newSet;
-    });
-  };
 
   const generateQuestions = async () => {
     if (!intro.trim()) {
@@ -87,9 +72,7 @@ export default function TCFScreen() {
       const updated = [...storedQuestions, ...uniqueNewQs];
       setStoredQuestions(updated);
       saveStoredQuestions(updated);
-      setQuestions(uniqueNewQs);
       setReviewMode(false);
-      setExpandedIds(new Set()); // reset expanded state on new questions
     } catch (e) {
       console.error(e);
       alert("Erreur lors de la génération.");
@@ -97,8 +80,6 @@ export default function TCFScreen() {
       setLoading(false);
     }
   };
-
-  const listToShow = reviewMode ? storedQuestions : questions;
 
   return (
     <div className="min-h-screen bg-black p-6 text-white max-w-6xl mx-auto">
@@ -143,28 +124,7 @@ export default function TCFScreen() {
 
         {/* Right column: questions */}
         <div className="md:w-1/2 max-h-[80vh] overflow-y-auto space-y-4">
-          {listToShow.length === 0 ? (
-            <p className="text-center mt-10 text-gray-400">
-              {reviewMode
-                ? "Aucune question sauvegardée."
-                : 'Aucune question générée. Cliquez sur "Générer des questions".'}
-            </p>
-          ) : (
-            listToShow.map(({ id, question, answer }) => (
-              <div
-                key={id}
-                className="bg-zinc-800 p-4 rounded border border-gray-700 cursor-pointer select-none"
-                onClick={() => toggleAnswer(id)}
-              >
-                <p className="font-semibold">❓ {question}</p>
-                {expandedIds.has(id) && (
-                  <p className="mt-2 text-gray-300 whitespace-pre-wrap">
-                    💬 {answer}
-                  </p>
-                )}
-              </div>
-            ))
-          )}
+          <QuestionManager />
         </div>
       </div>
     </div>

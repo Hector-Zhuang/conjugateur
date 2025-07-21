@@ -13,11 +13,36 @@ const openai = new OpenAI({
 
 const SYSTEM_MESSAGE = `You are a French teacher helping a student prepare for the TCF Canada speaking test.`;
 
-function buildPrompt(userIntro: string, count: number) {
+function getStoredQuestions(): string[] {
+  const raw = localStorage.getItem("tcfAskedQuestions");
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as string[];
+  } catch {
+    return [];
+  }
+}
+
+function storeNewQuestions(newQuestions: SpeakingQuestion[]) {
+  const existing = getStoredQuestions();
+  const updated = [...existing, ...newQuestions.map((q) => q.question)];
+  localStorage.setItem("tcfAskedQuestions", JSON.stringify(updated));
+}
+
+function buildPrompt(userIntro: string, count: number, asked: string[]) {
+  const askedBlock =
+    asked.length > 0
+      ? `AVOID generating questions that are similar to the following already-asked questions:\n${asked
+          .map((q) => `- ${q}`)
+          .join("\n")}\n`
+      : "";
+
   return `
 You are a French teacher preparing students for the TCF Canada speaking test.
 
-Based on the following self-introduction, generate ${count} pairs of French speaking questions and realistic, personalized answers.
+${askedBlock}
+
+Based on the following self-introduction, generate ${count} **different** French speaking questions with personalized and realistic answers.
 
 SELF-INTRODUCTION:
 """
@@ -31,8 +56,7 @@ A raw JSON array of objects like this:
   {
     "question": "Pourquoi avez-vous choisi de vivre au Canada ?",
     "answer": "J'ai choisi de vivre au Canada pour découvrir une nouvelle culture et développer ma carrière."
-  },
-  ...
+  }
 ]
 
 Rules:
@@ -47,7 +71,8 @@ export async function generateSpeakingQuestionsFromIntro(
   intro: string,
   count = 6,
 ): Promise<SpeakingQuestion[]> {
-  const prompt = buildPrompt(intro, count);
+  const alreadyAsked = getStoredQuestions();
+  const prompt = buildPrompt(intro, count, alreadyAsked);
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-2024-08-06",
@@ -62,7 +87,12 @@ export async function generateSpeakingQuestionsFromIntro(
   const raw = completion.choices[0]?.message?.content ?? "";
 
   try {
-    return JSON.parse(raw) as SpeakingQuestion[];
+    const parsed = JSON.parse(raw) as SpeakingQuestion[];
+
+    const newUnique = parsed.filter((q) => !alreadyAsked.includes(q.question));
+
+    storeNewQuestions(newUnique);
+    return newUnique;
   } catch (e) {
     console.error("JSON parse failed:", raw);
     throw e;
