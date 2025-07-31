@@ -4,6 +4,7 @@ export interface SpeakingQuestion {
   id: string;
   question: string;
   answer: string;
+  date: string; // ISO string like "2025-07-22"
 }
 
 const openai = new OpenAI({
@@ -32,7 +33,7 @@ function storeNewQuestions(newQuestions: SpeakingQuestion[]) {
 function buildPrompt(userIntro: string, count: number, asked: string[]) {
   const askedBlock =
     asked.length > 0
-      ? `AVOID generating questions that are similar to the following already-asked questions:\n${asked
+      ? `AVOID generating questions similar to these already-asked questions:\n${asked
           .map((q) => `- ${q}`)
           .join("\n")}\n`
       : "";
@@ -42,7 +43,7 @@ You are a French teacher preparing students for the TCF Canada speaking test.
 
 ${askedBlock}
 
-Based on the following self-introduction, generate ${count} **different** French speaking questions with personalized and realistic answers.
+Based on the following self-introduction, generate exactly ${count} **different** French speaking questions with personalized, realistic answers.
 
 SELF-INTRODUCTION:
 """
@@ -63,7 +64,7 @@ Rules:
 - DO NOT use markdown code blocks (like \`\`\`)
 - DO NOT add explanations, intros, comments, or formatting
 - ONLY return valid JSON — not wrapped in quotes, not inside Markdown
-- If you're unsure, return an empty array []
+- If unsure, return an empty array []
 `;
 }
 
@@ -87,9 +88,18 @@ export async function generateSpeakingQuestionsFromIntro(
   const raw = completion.choices[0]?.message?.content ?? "";
 
   try {
-    const parsed = JSON.parse(raw) as SpeakingQuestion[];
+    const parsed = JSON.parse(raw) as Omit<SpeakingQuestion, "id" | "date">[];
 
-    const newUnique = parsed.filter((q) => !alreadyAsked.includes(q.question));
+    const today = new Date().toISOString().slice(0, 10); // e.g., "2025-07-22"
+    const withMeta: SpeakingQuestion[] = parsed.map((item) => ({
+      ...item,
+      id: crypto.randomUUID(),
+      date: today,
+    }));
+
+    const newUnique = withMeta.filter(
+      (q) => !alreadyAsked.includes(q.question),
+    );
 
     storeNewQuestions(newUnique);
     return newUnique;

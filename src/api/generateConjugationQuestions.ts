@@ -1,54 +1,58 @@
 import OpenAI from "openai";
-import type { Question } from "../types";
+import type { QuestionGroup } from "../types";
 
 const openai = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY ?? "",
   dangerouslyAllowBrowser: true,
 });
 
-export const generateQuestionsWithAIAndMixWrong = async (
+export const generateQuestionGroupsWithAIAndMixWrong = async (
   count: number,
-  wrongQuestions: Question[],
-): Promise<Question[]> => {
-  const askedQuestionsRaw = localStorage.getItem("frenchAskedQuestions");
-  const askedQuestions: Question[] = askedQuestionsRaw
-    ? JSON.parse(askedQuestionsRaw)
-    : [];
-  const excludedVerbs = [...new Set(askedQuestions.map((q) => q.verb))];
+  wrongGroups: QuestionGroup[],
+  allowedTenses?: string[],
+): Promise<QuestionGroup[]> => {
+  const askedRaw = localStorage.getItem("frenchAskedQuestions");
+  const askedGroups: QuestionGroup[] = askedRaw ? JSON.parse(askedRaw) : [];
+
+  const excludedVerbs = [...new Set(askedGroups.map((g) => g.verb))];
   const excludedList = excludedVerbs.length
     ? `Avoid using these verbs: ${excludedVerbs.join(", ")}.`
     : "";
 
+  const tenseFilter =
+    allowedTenses && allowedTenses.length
+      ? `Only use these tenses: ${allowedTenses.join(", ")}.`
+      : `Use a variety of tenses (présent, passé composé, futur simple, imparfait, conditionnel, subjonctif, etc.). No more than 30% of groups should use présent tense.`;
+
   const prompt = `
-    Generate EXACTLY ${count * 3} French verb conjugation questions as a flat JSON array.
-    Group every 3 questions by the same verb and tense, with persons "je", "nous", and "ils" respectively.
-  
-    Use this schema:
-  
-    interface Question {
-      id: number;
-      verb: string;
-      tense: string;
-      person: string; // "je", "nous", or "ils"
-      englishMeaning: string;
-      answer: string;
-    }
-  
-    Rules:
-    - Each group of 3 questions must use the same verb and tense
-    - Each group contains "je", "nous", and "ils"
-    - No repeated verbs across groups
-    - 15-20% basic verbs (être, avoir, aller, faire)
-    - At least 5 unique verbs total in ${count} groups
-    ${excludedList}
-    - Provide accurate answers INCLUDING the subject pronoun, e.g. "je mange", "nous mangeons"
-    - NO example sentences required
-    - NO markdown, explanations, or extra text
-  
-    OUTPUT ONLY the RAW JSON ARRAY WITHOUT markdown or code blocks.
-    Do NOT wrap output in quotes or escape characters.
-    Only output valid JSON.
-  `;
+      Generate EXACTLY ${count} French verb conjugation question groups as a flat JSON array.
+      
+      Each group should follow this schema:
+      interface QuestionGroup {
+        verb: string;
+        tense: string;
+        englishMeaning: string;
+        questions: Question[]; // contains exactly 3
+      }
+      interface Question {
+        person: "je" | "nous" | "ils";
+        answer: string; // includes subject pronoun, e.g. "je mange"
+      }
+      
+      Rules:
+      - Each group contains questions for the same verb and tense.
+      - The 3 questions in each group correspond to "je", "nous", and "ils", in any order.
+      - No verb should repeat across groups.
+      - ${tenseFilter}
+      - Include 15-20% basic verbs (être, avoir, aller, faire).
+      - Provide accurate conjugations including subject pronouns.
+      - For ALL groups with tense "subjonctif", ALL answers MUST start with "que" followed by the conjugated verb phrase (e.g., "que je vaille").
+      - Do NOT include example sentences or explanations.
+      - Output only the raw JSON array. Do NOT wrap the output in markdown or quotes.
+      - Do NOT escape quotes or other characters.
+      - The JSON must be valid and parsable.
+      ${excludedList}
+      `;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-2024-08-06",
@@ -56,7 +60,7 @@ export const generateQuestionsWithAIAndMixWrong = async (
       {
         role: "system",
         content:
-          "You are a helpful assistant generating French verb conjugation questions.",
+          "You are a helpful assistant generating French conjugation questions.",
       },
       {
         role: "user",
@@ -69,56 +73,54 @@ export const generateQuestionsWithAIAndMixWrong = async (
 
   const text = completion.choices[0]?.message?.content ?? "";
 
-  let newQuestions: Question[] = [];
+  let newGroups: QuestionGroup[] = [];
   try {
-    newQuestions = JSON.parse(text) as Question[];
+    newGroups = JSON.parse(text);
   } catch (e) {
     console.error("Failed to parse JSON from AI:", text);
     throw e;
   }
 
-  const maxWrongInsert = Math.floor(count * 3 * 0.2);
-  const shuffledWrong = wrongQuestions.sort(() => Math.random() - 0.5);
-  const wrongToInsert = shuffledWrong.slice(0, maxWrongInsert);
-
-  const combinedQuestions: Question[] = [];
+  const resultGroups: QuestionGroup[] = [];
   let newIndex = 0;
-  let wrongIndex = 0;
+  // let wrongIndex = 0;
 
-  while (
-    combinedQuestions.length < count * 3 &&
-    (newIndex < newQuestions.length || wrongIndex < wrongToInsert.length)
-  ) {
-    if (wrongIndex < wrongToInsert.length) {
-      combinedQuestions.push(wrongToInsert[wrongIndex]);
-      wrongIndex++;
-    }
-    if (
-      newIndex < newQuestions.length &&
-      combinedQuestions.length < count * 3
-    ) {
-      combinedQuestions.push(newQuestions[newIndex]);
-      newIndex++;
-    }
-  }
+  // while (
+  //   resultGroups.length < count &&
+  //   (newIndex < newGroups.length || wrongIndex < wrongToInsert.length)
+  // ) {
+  //   if (wrongIndex < wrongToInsert.length) {
+  //     const wrong = wrongToInsert[wrongIndex];
+  //     resultGroups.push({
+  //       verb: wrong.verb,
+  //       tense: wrong.tense,
+  //       englishMeaning: wrong.englishMeaning,
+  //       questions: wrong.questions,
+  //     });
+  //     wrongIndex++;
+  //   }
+  //   if (newIndex < newGroups.length && resultGroups.length < count) {
+  //     resultGroups.push(newGroups[newIndex]);
+  //     newIndex++;
+  //   }
+  // }
 
-  while (
-    combinedQuestions.length < count * 3 &&
-    newIndex < newQuestions.length
-  ) {
-    combinedQuestions.push(newQuestions[newIndex]);
+  while (resultGroups.length < count && newIndex < newGroups.length) {
+    resultGroups.push(newGroups[newIndex]);
     newIndex++;
   }
 
-  combinedQuestions.forEach((q, i) => {
-    q.id = i + 1;
+  let currentId =
+    parseInt(localStorage.getItem("conjugationQuestionNum") || "") || 0;
+  resultGroups.forEach((group) => {
+    group.questions.forEach((q) => {
+      q.id = currentId++;
+    });
   });
+  localStorage.setItem("conjugationQuestionNum", String(currentId));
 
-  const updatedAskedQuestions = [...askedQuestions, ...combinedQuestions];
-  localStorage.setItem(
-    "frenchAskedQuestions",
-    JSON.stringify(updatedAskedQuestions),
-  );
+  const updatedStorage = [...askedGroups, ...resultGroups];
+  localStorage.setItem("frenchAskedQuestions", JSON.stringify(updatedStorage));
 
-  return combinedQuestions;
+  return resultGroups;
 };

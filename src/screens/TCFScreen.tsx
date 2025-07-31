@@ -3,7 +3,7 @@ import type { SpeakingQuestion } from "../api";
 import { generateSpeakingQuestionsFromIntro } from "../api";
 import QuestionManager from "../components/QuestionManager";
 
-const STORAGE_KEY = "tcf_speaking_questions";
+const STORAGE_KEY = "tcf_speaking_questions_new";
 const INTRO_STORAGE_KEY = "tcf_intro";
 
 function loadStoredQuestions(): SpeakingQuestion[] {
@@ -48,10 +48,12 @@ export default function TCFScreen() {
     setLoading(true);
     try {
       const newQs = await generateSpeakingQuestionsFromIntro(intro, 5);
+      const now = new Date().toISOString().split("T")[0]; // e.g. 2025-07-22
 
       const newQsWithIds = newQs.map((q, i) => ({
         ...q,
         id: q.id ?? `gen-${Date.now()}-${i}`,
+        date: now,
       }));
 
       const uniqueNewQs = newQsWithIds.filter(
@@ -124,7 +126,10 @@ export default function TCFScreen() {
 
         {/* Right column: questions */}
         <div className="md:w-1/2 max-h-[80vh] overflow-y-auto space-y-4">
-          <QuestionManager />
+          <QuestionManager
+            questions={storedQuestions}
+            setQuestions={setStoredQuestions}
+          />
         </div>
       </div>
     </div>

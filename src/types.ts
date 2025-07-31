@@ -1,9 +1,6 @@
 export interface Question {
   id: number;
-  verb: string;
-  tense: string;
-  person: "je" | "nous" | "ils";
-  englishMeaning: string;
+  person: string; // "je", "nous", or "ils"
   answer: string;
 }
 
@@ -15,3 +12,9 @@ export interface QuestionGroup {
 }
 
 export type PracticeMode = "new" | "review";
+
+export type GrammarQuestion = {
+  id: string;
+  sentence: string;
+  answer: string;
+};

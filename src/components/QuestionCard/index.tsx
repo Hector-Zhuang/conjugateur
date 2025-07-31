@@ -1,7 +1,8 @@
 import React from "react";
-import type { Question } from "../../types";
+import type { Question, QuestionGroup } from "../../types";
 
 interface QuestionCardProps {
+  group: QuestionGroup;
   questions: Question[];
   userAnswers: Record<string, string>;
   setUserAnswers: React.Dispatch<React.SetStateAction<Record<string, string>>>;
@@ -29,6 +30,7 @@ const tenseColors: Record<string, string> = {
 };
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({
+  group,
   questions,
   userAnswers,
   setUserAnswers,
@@ -58,7 +60,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     }
   };
 
-  const { verb, tense, englishMeaning } = questions[0];
+  const { verb, tense, englishMeaning } = group;
   const tenseColorClass = tenseColors[tense] || "text-indigo-400";
 
   return (
@@ -74,8 +76,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         const isPersonCorrect =
           userAnswer.trim().toLowerCase() === answer.toLowerCase();
         const showAnswer = showResult && !isPersonCorrect;
+
         return (
-          <div key={id} className="mb-4">
+          <div key={id + person} className="mb-4">
             <p className="font-medium capitalize mb-1">{person}</p>
             <input
               type="text"

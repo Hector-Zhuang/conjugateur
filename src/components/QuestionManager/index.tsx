@@ -1,18 +1,35 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { SpeakingQuestion } from "../../api";
 
-const STORAGE_KEY = "tcf_speaking_questions";
+function formatDate(dateStr: string) {
+  const date = new Date(dateStr);
+  return date.toISOString().slice(0, 10);
+}
 
-export default function QuestionManager() {
-  const [questions, setQuestions] = useState<SpeakingQuestion[]>([]);
+function groupQuestionsByDate(questions: SpeakingQuestion[]) {
+  const groups: Record<string, SpeakingQuestion[]> = {};
+  for (const q of questions) {
+    const dateKey =
+      q.date ?? new Date(parseInt(q.id?.slice(0, 13))).toISOString();
+    const key = formatDate(dateKey);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(q);
+  }
+
+  const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+  return sortedDates.map((date) => ({
+    date,
+    questions: groups[date],
+  }));
+}
+
+type Props = {
+  questions: SpeakingQuestion[];
+  setQuestions: (qs: SpeakingQuestion[]) => void;
+};
+
+export default function QuestionManager({ questions, setQuestions }: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      setQuestions(JSON.parse(stored));
-    }
-  }, []);
 
   const toggleAnswer = (id: string) => {
     setExpandedIds((prev) => {
@@ -29,13 +46,15 @@ export default function QuestionManager() {
   const removeQuestion = (id: string) => {
     const updated = questions.filter((q) => q.id !== id);
     setQuestions(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem("tcf_speaking_questions_new", JSON.stringify(updated));
   };
 
   const clearAll = () => {
     setQuestions([]);
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem("tcf_speaking_questions_new");
   };
+
+  const grouped = groupQuestionsByDate(questions);
 
   return (
     <div className="p-4 text-white">
@@ -56,38 +75,46 @@ export default function QuestionManager() {
           No questions generated. Click "Generate Questions".
         </p>
       ) : (
-        <div className="space-y-3">
-          {questions.map(({ id, question, answer }) => (
-            <div
-              key={id}
-              className="bg-zinc-800 p-4 rounded border border-gray-700 select-text relative"
-            >
-              {/* Only this line toggles the answer */}
-              <p
-                className="font-semibold cursor-pointer select-none"
-                onClick={() => toggleAnswer(id)}
-              >
-                ❓ {question}
-              </p>
-
-              {expandedIds.has(id) && (
-                <>
-                  <p className="mt-2 text-gray-300 whitespace-pre-wrap">
-                    💬 {answer}
-                  </p>
-                  <div className="mt-4 flex justify-end">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation(); // in case it's nested inside another interactive block
-                        removeQuestion(id);
-                      }}
-                      className="text-sm text-red-400 hover:text-red-500"
+        <div className="space-y-6">
+          {grouped.map(({ date, questions }) => (
+            <div key={date}>
+              <h3 className="text-sm text-gray-400 font-medium mb-2 border-b border-gray-700 pb-1">
+                {date}
+              </h3>
+              <div className="space-y-3">
+                {questions.map(({ id, question, answer }) => (
+                  <div
+                    key={id}
+                    className="bg-zinc-800 p-4 rounded border border-gray-700 select-text relative"
+                  >
+                    <p
+                      className="font-semibold cursor-pointer select-none"
+                      onClick={() => toggleAnswer(id)}
                     >
-                      Delete
-                    </button>
+                      ❓ {question}
+                    </p>
+
+                    {expandedIds.has(id) && (
+                      <>
+                        <p className="mt-2 text-gray-300 whitespace-pre-wrap">
+                          💬 {answer}
+                        </p>
+                        <div className="mt-4 flex justify-end">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeQuestion(id);
+                            }}
+                            className="text-sm text-red-400 hover:text-red-500"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                </>
-              )}
+                ))}
+              </div>
             </div>
           ))}
         </div>
